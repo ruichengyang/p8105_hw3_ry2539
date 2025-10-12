@@ -13,6 +13,7 @@ a _normal distribution_:
 ```{r}
 library(tidyverse)
 library(ggridges)
+library(patchwork)
 
 library(p8105.datasets)
 data("instacart")
@@ -176,7 +177,13 @@ Zip_Code_Rent_df = Zip_Code_Rent_df %>% mutate(Date = paste(as.character(Year), 
 
 Zip_Code_Rent_df
 
-p = ggplot(Zip_Code_Rent_df, aes(x = Date, y = rental_price)) + geom_point(aes(color = CountyName)) + facet_wrap(~ZipCode, ncol = 10)
+ggplot(Zip_Code_Rent_df, aes(x = Date, y = rental_price)) + geom_point(aes(color = CountyName)) + facet_wrap(~ZipCode)
+
+every_rent_zip_code = ggplot(Zip_Code_Rent_df, aes(x = Date, y = rental_price)) + geom_point(aes(color = ZipCode)) + facet_wrap(~CountyName)
+
+every_rent_zip_code
+
+p = ggplot(Zip_Code_Rent_df, aes(x = Date, y = rental_price)) + geom_point(aes(color = CountyName)) + facet_wrap(~ZipCode)
 
 ggsave("zip_codes_borough.png", plot = p, width = 30, height = 20, limitsize = FALSE)
 
@@ -190,5 +197,17 @@ Twenty_Twenty_Three_Zip_Code_rent_df = Zip_Code_Rent_Year_df |> filter(Year == 2
 Twenty_Twenty_Three_Zip_Code_rent_df
 
 ggplot(Twenty_Twenty_Three_Zip_Code_rent_df, aes(x = ZipCode, y = mean_rental_price)) + geom_point(aes(color = CountyName))
+
+```
+
+
+
+```{r}
+
+mean_rent_zip_code_2023_plot = ggplot(Twenty_Twenty_Three_Zip_Code_rent_df, aes(x = ZipCode, y = mean_rental_price)) + geom_point(aes(color = CountyName))
+
+combined_plot = every_rent_zip_code/mean_rent_zip_code_2023_plot
+
+ggsave("nyc_combined_rental_trend.png", plot = combined_plot, width = 30, height = 20, limitsize = FALSE)
 
 ```
