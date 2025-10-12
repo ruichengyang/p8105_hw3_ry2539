@@ -65,4 +65,130 @@ instacart |> filter(product_name == "Pink Lady Apples" | product_name == "Coffee
 
 # Section 2
 
-I can take the mean of the sample, too!
+```{r}
+
+#Read the zillow rental price data file#
+
+zillow_price_df = read_csv("./zillow_data/zillow_data/Zip_zori_uc_sfrcondomfr_sm_month_NYC.csv")
+
+#Have a new data variable as ZipCode from the regionname variable#
+
+zillow_price_zip_variation_df = mutate(zillow_price_df, ZipCode = RegionName)
+
+#Clean the data and eliminate StateName, RegionName, RegionType, which are unnecessary data variables#
+
+zillow_clean_price_df = select(zillow_price_zip_variation_df, -`StateName`, -RegionName, -RegionType)
+```
+
+```{r}
+
+#Read the zillow properties data file#
+
+zillow_df = read_csv("./zillow_data/zillow_data/Zip Codes.csv")
+
+#Mutate the CountyName variable from "Bronx" to "Bronx County"#
+
+zillow_county_variation_df = mutate(zillow_df, CountyName = paste(County, "County"))
+
+#Eliminate varibles such as State FIPS, County FIPS, and County#
+
+zillow_clean_df = select(zillow_county_variation_df, -`State FIPS`, -`County FIPS`, -County)
+```
+
+```{r}
+
+#Merge the two datasets into a single tidy dataset#
+
+first_single_zillow_df = left_join(zillow_clean_df, zillow_clean_price_df)
+first_clean_single_zillow_df = arrange(first_single_zillow_df, RegionID)
+
+#Count the unique zip codes and neighborhoods present in this dataset#
+
+pivot_longer_single_zillow_df = pivot_longer(
+  first_clean_single_zillow_df, cols = starts_with("20"),
+  names_to = "Date",
+  values_to = "Rental Price"
+)
+
+
+
+
+not_na_pivot_longer_zillow_df = pivot_longer_single_zillow_df %>% drop_na(`Rental Price`)
+is_na_pivot_longer_zillow_df = pivot_longer_single_zillow_df %>% filter(is.na(`Rental Price`))
+
+not_na_pivot_longer_single_zillow_df = 
+  not_na_pivot_longer_zillow_df |> count(ZipCode, sort = TRUE)
+
+is_na_pivot_longer_single_zillow_df =
+  is_na_pivot_longer_zillow_df |> count(ZipCode, sort = TRUE)
+
+is_na_pivot_longer_single_zillow_df = is_na_pivot_longer_single_zillow_df %>% mutate(n = 0)
+
+combined_zip_code_rental_count_df = bind_rows(is_na_pivot_longer_single_zillow_df, not_na_pivot_longer_single_zillow_df)
+
+counts_of_zip_codes = combined_zip_code_rental_count_df %>% group_by(ZipCode) %>%
+  summarise(n = sum(n))
+
+highest_counts_of_zip_codes = counts_of_zip_codes %>% filter(n == 116)
+lowest_counts_of_zip_codes = counts_of_zip_codes %>% filter(n < 10) %>% arrange(desc(n))
+
+pivot_longer_single_zillow_df
+highest_counts_of_zip_codes
+lowest_counts_of_zip_codes
+```
+
+The number of ZIP codes that were observed for all 116 months is `r sum(counts_of_zip_codes$n == 116)`. Meanwhile, the number of ZIP codes that were observed for fewer than 10 months is `r sum(counts_of_zip_codes$n < 10)`.
+
+```{r}
+
+Year_pivot_longer_df = separate(pivot_longer_single_zillow_df, 
+                                Date, into = c("Year", "Month", "Day"), sep = "-")
+
+Year_1_pivot_longer_df = Year_pivot_longer_df |> mutate(Year = strtoi(Year), `Rental Price` =
+                                                        case_when(
+                                                          is.na(`Rental Price`) ~ 0,
+                                                          !is.na(`Rental Price`) ~ (`Rental Price`)
+                                                        ))
+
+Year_1_pivot_longer_df
+
+Year_Borough_df = Year_1_pivot_longer_df |> drop_na(`Rental Price`) |> group_by(Year, CountyName) |>
+  summarize(mean_rental_price = mean(`Rental Price`)) |> arrange(CountyName)
+
+Year_Borough_df
+
+ggplot(Year_Borough_df, aes(x = Year, y = mean_rental_price)) + geom_point(aes(color = CountyName)) +
+  geom_smooth(se = FALSE) + facet_grid(.~CountyName)
+
+
+```
+
+
+```{r}
+
+Zip_Code_Rent_Year_df = Year_pivot_longer_df |> mutate(Year = strtoi(Year))
+  
+Zip_Code_Rent_df = Zip_Code_Rent_Year_df |> group_by(Year, ZipCode, CountyName, Month) |> summarize(rental_price = `Rental Price`)
+
+Zip_Code_Rent_df = Zip_Code_Rent_df %>% drop_na(rental_price)
+
+Zip_Code_Rent_df = Zip_Code_Rent_df %>% mutate(Date = paste(as.character(Year), as.character(Month), sep = "-"))
+
+Zip_Code_Rent_df
+
+p = ggplot(Zip_Code_Rent_df, aes(x = Date, y = rental_price)) + geom_point(aes(color = CountyName)) + facet_wrap(~ZipCode, ncol = 10)
+
+ggsave("zip_codes_borough.png", plot = p, width = 30, height = 20, limitsize = FALSE)
+
+
+```
+
+```{r}
+
+Twenty_Twenty_Three_Zip_Code_rent_df = Zip_Code_Rent_Year_df |> filter(Year == 2023) |> group_by(ZipCode, CountyName) |>  summarize(mean_rental_price = mean(`Rental Price`)) |> drop_na(mean_rental_price)
+
+Twenty_Twenty_Three_Zip_Code_rent_df
+
+ggplot(Twenty_Twenty_Three_Zip_Code_rent_df, aes(x = ZipCode, y = mean_rental_price)) + geom_point(aes(color = CountyName))
+
+```
