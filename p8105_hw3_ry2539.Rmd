@@ -185,7 +185,7 @@ every_rent_zip_code
 
 p = ggplot(Zip_Code_Rent_df, aes(x = Date, y = rental_price)) + geom_point(aes(color = CountyName)) + facet_wrap(~ZipCode)
 
-ggsave("zip_codes_borough.png", plot = p, width = 30, height = 20, limitsize = FALSE)
+ggsave("Results/zip_codes_borough.png", plot = p, width = 30, height = 20, limitsize = FALSE)
 
 
 ```
@@ -208,6 +208,72 @@ mean_rent_zip_code_2023_plot = ggplot(Twenty_Twenty_Three_Zip_Code_rent_df, aes(
 
 combined_plot = every_rent_zip_code/mean_rent_zip_code_2023_plot
 
-ggsave("nyc_combined_rental_trend.png", plot = combined_plot, width = 30, height = 20, limitsize = FALSE)
+ggsave("Results/nyc_combined_rental_trend.png", plot = combined_plot, width = 30, height = 20, limitsize = FALSE)
 
 ```
+
+# Section 3
+
+```{r}
+
+nhane_covar_df = read_csv("./Problem_3_Datasets/nhanes_covar.csv")
+nhane_accel_df = read_csv("./Problem_3_Datasets/nhanes_accel.csv")
+
+nhane_covar_clean_variable_df = nhane_covar_df |> mutate(SEQN = `...1`, sex = `1 = male`,
+                                                      age = `...3`, BMI = `...4`, 
+                                                      education = `1 = Less than high school`) |>
+  select(-`...1`, -`1 = male`, -`...3`, -`...4`, -`1 = Less than high school`) |> drop_na(SEQN, sex, age, BMI, education) |> filter(age >= 21) |> filter(SEQN != "SEQN") |> mutate(
+    sex = case_when(
+      sex == 1 ~ "male",
+      sex == 2 ~ "female"
+    ),
+    education = case_when(
+      education == 1 ~ "Less than high school",
+      education == 2 ~ "High school equivalent",
+      education == 3 ~ "More than high school"
+    ),
+    SEQN = as.numeric(SEQN), age = as.numeric(age), BMI = as.numeric(BMI)
+  )
+
+full_nhane_joint_data_df = left_join(nhane_covar_clean_variable_df, nhane_accel_df)
+
+full_nhane_joint_data_df
+
+```
+
+```{r}
+table_sex_education_distribution = full_nhane_joint_data_df |> group_by(sex, education) |>
+  summarise(n = n()) |> pivot_wider(names_from = sex, values_from = n)
+
+table_sex_education_distribution
+```
+
+```{r}
+
+ggplot(full_nhane_joint_data_df, aes(x = age, fill = sex)) + geom_histogram(binwidth = 5, alpha = 0.7) +
+  facet_grid(education~sex)
+
+```
+
+```{r}
+
+total_MIMS_df = full_nhane_joint_data_df |> pivot_longer(cols = starts_with("min"), 
+                                                        names_to = "MIMS", values_to = "MIMS amount") |>
+  group_by(SEQN, sex, age, education) |> summarise(Total_MIMS = sum(`MIMS amount`))
+
+ggplot(total_MIMS_df, aes(x = age, y = Total_MIMS, color = sex)) + geom_point(alpha = 0.4) +
+  geom_smooth(method = "loess", se = FALSE) + facet_grid(education~sex)
+
+```
+
+```{r}
+
+time_minute_average_df = full_nhane_joint_data_df |> pivot_longer(cols = starts_with("min"), 
+                                                        names_to = "MIMS", values_to = "MIMS amount") |>
+  mutate(minute = as.numeric(str_extract(MIMS, "\\d+")), hour = minute %/% 60) |> group_by(hour, sex, education) |> summarise(Mean_MIMS = mean(`MIMS amount`))
+
+ggplot(time_minute_average_df, aes(x = hour, y = Mean_MIMS, color = sex)) + geom_point(alpha = 0.4) +
+  geom_smooth(method = "loess", se = FALSE) + facet_wrap(~education)
+
+```
+
